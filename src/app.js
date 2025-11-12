@@ -16,23 +16,23 @@ import authRoutes from './routes/auth.routes.js';
 import __dirname from './utils/constantsUtil.js';
 import websocket from './websocket.js';
 
-import './config/passport.config.js'; // configura estrategias passport (local + jwt)
+import './config/passport.config.js'; // passport (local + jwt)
 import errorHandler from './middlewares/error.middleware.js';
 
 const app = express();
 
-// Configuración CORS
+// Configuración
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  origin: process.env.CLIENT_URL || 'http://localhost:7000',
   credentials: true
 }));
 
-// View engine
+// View
 app.engine('handlebars', handlebars.engine());
 app.set('views', __dirname + '/../views');
 app.set('view engine', 'handlebars');
 
-// Middlewares globales
+// Middlewares
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -48,7 +48,7 @@ app.use('/', viewsRouter);
 // Health check
 app.get('/health', (req, res) => res.status(200).json({ status: 'UP', timestamp: new Date() }));
 
-// Manejo de errores (debe ir después de las rutas)
+// Manejo de errores
 app.use(errorHandler);
 
 // 404
@@ -56,21 +56,21 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
 });
 
-// Conexión a MongoDB y arranque del servidor
+// Conexión a MongoDB
 const PORT = parseInt(process.env.PORT) || 8080;
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/entrega-final';
+const MONGODB_URI = process.env.MONGODB_URI;
 
 mongoose.connect(MONGODB_URI)
   .then(() => {
-    console.log('✅ Conectado a MongoDB');
+    console.log('Conectado a MongoDB');
     const httpServer = app.listen(PORT, () => {
-      console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
+      console.log(`Servidor corriendo en puerto ${PORT}`);
     });
 
-    // Socket.IO con CORS coherente
+    // Socket.IO
     const io = new Server(httpServer, {
       cors: {
-        origin: process.env.CLIENT_URL || 'http://localhost:3000',
+        origin: process.env.CLIENT_URL || 'http://localhost:8000',
         credentials: true
       }
     });
@@ -78,7 +78,7 @@ mongoose.connect(MONGODB_URI)
     websocket(io);
   })
   .catch(err => {
-    console.error('❌ Error conectando a MongoDB:', err);
+    console.error('Error conectando a MongoDB:', err);
     process.exit(1);
   });
 
