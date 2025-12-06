@@ -1,32 +1,14 @@
-import User from '../models/user.model.js';
-import { hashPassword } from '../utils/password.util.js';
 import { generateToken } from '../config/jwt.config.js';
+import { UserResponseDTO } from '../dto/UserResponseDTO.js';
 
 export const register = async (req, res) => {
     try {
-        const { first_name, last_name, email, age, password } = req.body;
-        
-        const existingUser = await User.findOne({ email });
-        if (existingUser) {
-            return res.status(400).json({ message: 'El email ya está registrado' });
-        }
-
-        const hashedPassword = hashPassword(password);
-        const user = await User.create({
-            first_name,
-            last_name,
-            email,
-            age,
-            password: hashedPassword
-        });
-
-        const token = generateToken(user);
+        const token = generateToken(req.user);
         res.cookie('jwt', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production'
         });
-
-        res.status(201).json({ message: 'Usuario registrado exitosamente' });
+        res.status(201).json({ message: 'Usuario registrado exitosamente', user: req.user });
     } catch (error) {
         res.status(500).json({ message: 'Error al registrar usuario' });
     }
@@ -42,12 +24,28 @@ export const login = async (req, res) => {
 };
 
 export const current = async (req, res) => {
-    const user = req.user;
-    res.json({
-        first_name: user.first_name,
-        last_name: user.last_name,
-        email: user.email,
-        age: user.age,
-        role: user.role
-    });
+    try {
+        const user = req.user;
+
+        const userDTO = new UserResponseDTO(user);
+        const validation = userDTO.validate();
+
+        if (!validation.isValid) {
+            return res.status(400).json({
+                status: 'error',
+                message: 'Error en datos del usuario',
+                errors: validation.errors
+            });
+        }
+
+        res.json({
+            status: 'success',
+            user: userDTO.toObject()
+        });
+    } catch (error) {
+        res.status(500).json({
+            status: 'error',
+            message: 'Error al obtener usuario actual'
+        });
+    }
 };

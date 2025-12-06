@@ -2,11 +2,43 @@ import passport from 'passport';
 import { Strategy as LocalStrategy } from 'passport-local';
 import { Strategy as JWTStrategy, ExtractJwt } from 'passport-jwt';
 import User from '../models/user.model.js';
-import { comparePassword } from '../utils/password.util.js';
+import { comparePassword, hashPassword } from '../utils/password.util.js';
 import { JWT_SECRET } from './jwt.config.js';
 
-// Estrategia Local
-passport.use('local', new LocalStrategy(
+// Estrategia Local - Signup (Registro)
+passport.use('signup', new LocalStrategy(
+    {
+        usernameField: 'email',
+        passwordField: 'password',
+        passReqToCallback: true
+    },
+    async (req, email, password, done) => {
+        try {
+            const { first_name, last_name, age } = req.body;
+
+            const existingUser = await User.findOne({ email });
+            if (existingUser) {
+                return done(null, false, { message: 'El email ya está registrado' });
+            }
+
+            const hashedPassword = hashPassword(password);
+            const user = await User.create({
+                first_name,
+                last_name,
+                email,
+                age,
+                password: hashedPassword
+            });
+
+            return done(null, user);
+        } catch (error) {
+            return done(error);
+        }
+    }
+));
+
+// Estrategia Local - Login
+passport.use('login', new LocalStrategy(
     {
         usernameField: 'email',
         passwordField: 'password'

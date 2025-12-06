@@ -1,26 +1,20 @@
 import { Router } from 'express';
-import { productDBManager } from '../dao/productDBManager.js';
+import { ServiceFactory } from '../factory/index.js';
+import { CreateProductDTO, UpdateProductDTO } from '../dto/index.js';
 import { uploader } from '../utils/multerUtil.js';
+import { requireAdmin, optionalAuth } from '../middlewares/authorization.middleware.js';
 
 const router = Router();
-const ProductService = new productDBManager();
+const ProductService = ServiceFactory.createProductService();
 
-router.get('/', async (req, res) => {
-    const result = await ProductService.getAllProducts(req.query);
-
-    res.send({
-        status: 'success',
-        payload: result
-    });
-});
-
-router.get('/:pid', async (req, res) => {
-
+router.get('/', optionalAuth, async (req, res) => {
     try {
-        const result = await ProductService.getProductByID(req.params.pid);
+        const result = await ProductService.get(req.query);
+
         res.send({
             status: 'success',
-            payload: result
+            payload: result,
+            userInfo: req.user ? { id: req.user._id, email: req.user.email, role: req.user.role } : null
         });
     } catch (error) {
         res.status(400).send({
@@ -30,8 +24,23 @@ router.get('/:pid', async (req, res) => {
     }
 });
 
-router.post('/', uploader.array('thumbnails', 3), async (req, res) => {
+router.get('/:pid', optionalAuth, async (req, res) => {
+    try {
+        const result = await ProductService.getById(req.params.pid);
+        res.send({
+            status: 'success',
+            payload: result,
+            userInfo: req.user ? { id: req.user._id, email: req.user.email, role: req.user.role } : null
+        });
+    } catch (error) {
+        res.status(400).send({
+            status: 'error',
+            message: error.message
+        });
+    }
+});
 
+router.post('/', requireAdmin, uploader.array('thumbnails', 3), async (req, res) => {
     if (req.files) {
         req.body.thumbnails = [];
         req.files.forEach((file) => {
@@ -40,10 +49,24 @@ router.post('/', uploader.array('thumbnails', 3), async (req, res) => {
     }
 
     try {
-        const result = await ProductService.createProduct(req.body);
-        res.send({
+
+        const productDTO = new CreateProductDTO(req.body);
+        const validation = productDTO.validate();
+
+        if (!validation.isValid) {
+            return res.status(400).send({
+                status: 'error',
+                message: 'Validación fallida',
+                errors: validation.errors
+            });
+        }
+
+        const result = await ProductService.create(productDTO.toObject());
+        res.status(201).send({
             status: 'success',
-            payload: result
+            message: 'Producto creado exitosamente',
+            payload: result,
+            createdBy: { id: req.user._id, email: req.user.email }
         });
     } catch (error) {
         res.status(400).send({
@@ -53,8 +76,7 @@ router.post('/', uploader.array('thumbnails', 3), async (req, res) => {
     }
 });
 
-router.put('/:pid', uploader.array('thumbnails', 3), async (req, res) => {
-
+router.put('/:pid', requireAdmin, uploader.array('thumbnails', 3), async (req, res) => {
     if (req.files) {
         req.body.thumbnails = [];
         req.files.forEach((file) => {
@@ -63,10 +85,24 @@ router.put('/:pid', uploader.array('thumbnails', 3), async (req, res) => {
     }
 
     try {
-        const result = await ProductService.updateProduct(req.params.pid, req.body);
+
+        const productDTO = new UpdateProductDTO(req.body);
+        const validation = productDTO.validate();
+
+        if (!validation.isValid) {
+            return res.status(400).send({
+                status: 'error',
+                message: 'Validación fallida',
+                errors: validation.errors
+            });
+        }
+
+        const result = await ProductService.update(req.params.pid, productDTO.toObject());
         res.send({
             status: 'success',
-            payload: result
+            message: 'Producto actualizado exitosamente',
+            payload: result,
+            updatedBy: { id: req.user._id, email: req.user.email }
         });
     } catch (error) {
         res.status(400).send({
@@ -76,13 +112,14 @@ router.put('/:pid', uploader.array('thumbnails', 3), async (req, res) => {
     }
 });
 
-router.delete('/:pid', async (req, res) => {
-
+router.delete('/:pid', requireAdmin, async (req, res) => {
     try {
-        const result = await ProductService.deleteProduct(req.params.pid);
+        const result = await ProductService.delete(req.params.pid);
         res.send({
             status: 'success',
-            payload: result
+            message: 'Producto eliminado exitosamente',
+            payload: result,
+            deletedBy: { id: req.user._id, email: req.user.email }
         });
     } catch (error) {
         res.status(400).send({

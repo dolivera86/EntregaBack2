@@ -1,18 +1,19 @@
 import { Router } from 'express';
-import { productDBManager } from '../dao/productDBManager.js';
-import { cartDBManager } from '../dao/cartDBManager.js';
+import { ServiceFactory } from '../factory/index.js';
+import { AddToCartDTO, UpdateCartProductDTO } from '../dto/index.js';
+import { requireUserOrAdmin } from '../middlewares/authorization.middleware.js';
 
 const router = Router();
-const ProductService = new productDBManager();
-const CartService = new cartDBManager(ProductService);
+const CartService = ServiceFactory.createCartService();
+const CartProductService_Instance = ServiceFactory.createCartProductService();
 
-router.get('/:cid', async (req, res) => {
-
+router.get('/:cid', requireUserOrAdmin, async (req, res) => {
     try {
-        const result = await CartService.getProductsFromCartByID(req.params.cid);
+        const result = await CartService.getById(req.params.cid);
         res.send({
             status: 'success',
-            payload: result
+            payload: result,
+            user: { id: req.user._id, email: req.user.email, role: req.user.role }
         });
     } catch (error) {
         res.status(400).send({
@@ -22,13 +23,14 @@ router.get('/:cid', async (req, res) => {
     }
 });
 
-router.post('/', async (req, res) => {
-
+router.post('/', requireUserOrAdmin, async (req, res) => {
     try {
-        const result = await CartService.createCart();
-        res.send({
+        const result = await CartService.create();
+        res.status(201).send({
             status: 'success',
-            payload: result
+            message: 'Carrito creado exitosamente',
+            payload: result,
+            user: { id: req.user._id, email: req.user.email, role: req.user.role }
         });
     } catch (error) {
         res.status(400).send({
@@ -38,13 +40,30 @@ router.post('/', async (req, res) => {
     }
 });
 
-router.post('/:cid/product/:pid', async (req, res) => {
-
+router.post('/:cid/product/:pid', requireUserOrAdmin, async (req, res) => {
     try {
-        const result = await CartService.addProductByID(req.params.cid, req.params.pid)
-        res.send({
+
+        const cartDTO = new AddToCartDTO({
+            cid: req.params.cid,
+            pid: req.params.pid,
+            quantity: req.body.quantity
+        });
+        const validation = cartDTO.validate();
+
+        if (!validation.isValid) {
+            return res.status(400).send({
+                status: 'error',
+                message: 'Validación fallida',
+                errors: validation.errors
+            });
+        }
+
+        const result = await CartProductService_Instance.addProductToCart(cartDTO.cid, cartDTO.pid);
+        res.status(201).send({
             status: 'success',
-            payload: result
+            message: 'Producto agregado al carrito',
+            payload: result,
+            user: { id: req.user._id, email: req.user.email, role: req.user.role }
         });
     } catch (error) {
         res.status(400).send({
@@ -54,13 +73,14 @@ router.post('/:cid/product/:pid', async (req, res) => {
     }
 });
 
-router.delete('/:cid/product/:pid', async (req, res) => {
-
+router.delete('/:cid/product/:pid', requireUserOrAdmin, async (req, res) => {
     try {
-        const result = await CartService.deleteProductByID(req.params.cid, req.params.pid)
+        const result = await CartProductService_Instance.removeProductFromCart(req.params.cid, req.params.pid);
         res.send({
             status: 'success',
-            payload: result
+            message: 'Producto eliminado del carrito',
+            payload: result,
+            user: { id: req.user._id, email: req.user.email, role: req.user.role }
         });
     } catch (error) {
         res.status(400).send({
@@ -70,13 +90,30 @@ router.delete('/:cid/product/:pid', async (req, res) => {
     }
 });
 
-router.put('/:cid', async (req, res) => {
-
+router.put('/:cid/product/:pid', requireUserOrAdmin, async (req, res) => {
     try {
-        const result = await CartService.updateAllProducts(req.params.cid, req.body.products)
+
+        const updateDTO = new UpdateCartProductDTO({
+            cid: req.params.cid,
+            pid: req.params.pid,
+            quantity: req.body.quantity
+        });
+        const validation = updateDTO.validate();
+
+        if (!validation.isValid) {
+            return res.status(400).send({
+                status: 'error',
+                message: 'Validación fallida',
+                errors: validation.errors
+            });
+        }
+
+        const result = await CartProductService_Instance.updateProductQuantity(updateDTO.cid, updateDTO.pid, updateDTO.quantity);
         res.send({
             status: 'success',
-            payload: result
+            message: 'Cantidad de producto actualizada',
+            payload: result,
+            user: { id: req.user._id, email: req.user.email, role: req.user.role }
         });
     } catch (error) {
         res.status(400).send({
@@ -86,13 +123,14 @@ router.put('/:cid', async (req, res) => {
     }
 });
 
-router.put('/:cid/product/:pid', async (req, res) => {
-
+router.delete('/:cid', requireUserOrAdmin, async (req, res) => {
     try {
-        const result = await CartService.updateProductByID(req.params.cid, req.params.pid, req.body.quantity)
+        const result = await CartService.update(req.params.cid, { products: [] });
         res.send({
             status: 'success',
-            payload: result
+            message: 'Carrito vaciado exitosamente',
+            payload: result,
+            user: { id: req.user._id, email: req.user.email, role: req.user.role }
         });
     } catch (error) {
         res.status(400).send({
@@ -102,13 +140,13 @@ router.put('/:cid/product/:pid', async (req, res) => {
     }
 });
 
-router.delete('/:cid', async (req, res) => {
-
+router.get('/:cid/total', requireUserOrAdmin, async (req, res) => {
     try {
-        const result = await CartService.deleteAllProducts(req.params.cid)
+        const result = await CartProductService_Instance.getCartTotal(req.params.cid);
         res.send({
             status: 'success',
-            payload: result
+            payload: result,
+            user: { id: req.user._id, email: req.user.email, role: req.user.role }
         });
     } catch (error) {
         res.status(400).send({

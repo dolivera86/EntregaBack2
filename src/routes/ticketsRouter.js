@@ -1,26 +1,77 @@
 import { Router } from 'express';
-import passport from 'passport';
-import { register, login, current } from '../controllers/auth.controller.js';
-import { authenticateToken } from '../middlewares/auth.middleware.js';
+import ServiceFactory from '../factory/serviceFactory.js';
 import { PasswordResetRequestDTO, PasswordResetDTO } from '../dto/index.js';
+import { requireAuth, requireAdmin } from '../middlewares/authorization.middleware.js';
 import PasswordResetService from '../services/passwordReset.service.js';
 
 const router = Router();
 
-router.post('/register', 
-    passport.authenticate('signup', { session: false }), 
-    register
-);
+const TicketService = ServiceFactory.createTicketService();
 
-router.post('/login', 
-    passport.authenticate('login', { session: false }), 
-    login
-);
+router.get('/', requireAdmin, async (req, res) => {
+    try {
+        const tickets = await TicketService.get();
 
-router.get('/current', 
-    authenticateToken,
-    current
-);
+        res.json({
+            status: 'success',
+            count: tickets.length,
+            payload: tickets
+        });
+    } catch (error) {
+        res.status(400).json({
+            status: 'error',
+            message: error.message
+        });
+    }
+});
+
+router.get('/:tid', requireAuth, async (req, res) => {
+    try {
+        const ticket = await TicketService.getById(req.params.tid);
+
+        if (ticket.purchaser._id.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+            return res.status(403).json({
+                status: 'error',
+                message: 'No tienes permiso para ver este ticket'
+            });
+        }
+
+        res.json({
+            status: 'success',
+            payload: ticket
+        });
+    } catch (error) {
+        res.status(400).json({
+            status: 'error',
+            message: error.message
+        });
+    }
+});
+
+router.get('/user/:uid', requireAuth, async (req, res) => {
+    try {
+
+        if (req.params.uid !== req.user._id.toString() && req.user.role !== 'admin') {
+            return res.status(403).json({
+                status: 'error',
+                message: 'No tienes permiso para ver estos tickets'
+            });
+        }
+
+        const tickets = await TicketService.getByPurchaser(req.params.uid);
+
+        res.json({
+            status: 'success',
+            count: tickets.length,
+            payload: tickets
+        });
+    } catch (error) {
+        res.status(400).json({
+            status: 'error',
+            message: error.message
+        });
+    }
+});
 
 router.post('/forgot-password', async (req, res) => {
     try {

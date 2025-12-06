@@ -1,40 +1,44 @@
 import fs from 'fs';
+import CartFSHelper from './helpers/cartFSHelper.js';
 
 class cartFSManager {
-    
-    constructor(file, productFSManager) {
+    constructor(file) {
         this.file = file;
-        this.productFSManager = productFSManager;
     }
 
-    async getAllCarts() {
+    /**
+     * GET: Obtiene todos los carritos
+     */
+    async get() {
         try {
             const carts = await fs.promises.readFile(this.file, 'utf-8');
             return JSON.parse(carts);
         } catch (error) {
             console.error(error.message);
-            return []; 
+            return [];
         }
     }
 
-    async getProductsFromCartByID(cid) {
-        const carts = await this.getAllCarts();
+    /**
+     * GETById: Obtiene un carrito por ID
+     */
+    async getById(cid) {
+        const carts = await this.get();
+        const cart = CartFSHelper.getCartById(carts, cid);
 
-        const cartFilter = carts.filter(cart => cart.id == cid);
+        if (!cart) throw new Error(`El carrito ${cid} no existe!`);
 
-        if (cartFilter.length > 0) {
-            return cartFilter[0].products;
-        }
-
-        throw new Error(`El carrito ${cid} no existe!`);
+        return cart;
     }
 
-    async createCart() {
-
-        const carts = await this.getAllCarts();
+    /**
+     * CREATE: Crea un nuevo carrito
+     */
+    async create() {
+        const carts = await this.get();
 
         const newCart = {
-            id: this.getCartID(carts),
+            id: CartFSHelper.getCartID(carts),
             products: []
         }
 
@@ -42,62 +46,49 @@ class cartFSManager {
 
         try {
             await fs.promises.writeFile(this.file, JSON.stringify(carts, null, '\t'));
-
             return newCart;
         } catch (error) {
             throw new Error('Error al crear el carrito');
         }
     }
 
-    getCartID(carts) {
-        
-        const cartsLength = carts.length;
-        if (cartsLength > 0) {
-            return parseInt(carts[cartsLength -1].id) + 1;
-        }
+    /**
+     * UPDATE: Actualiza los datos de un carrito
+     */
+    async update(cid, updateData) {
+        const carts = await this.get();
+        const cartIndex = CartFSHelper.findCartIndex(carts, cid);
 
-        return 1;
+        if (cartIndex === -1) throw new Error(`El carrito ${cid} no existe!`);
+
+        carts[cartIndex] = { ...carts[cartIndex], ...updateData };
+
+        try {
+            await fs.promises.writeFile(this.file, JSON.stringify(carts, null, '\t'));
+            return carts[cartIndex];
+        } catch (error) {
+            throw new Error('Error al actualizar el carrito');
+        }
     }
 
-    async addProductByID(cid, pid) {
-        //Check if exist product
-        await this.productFSManager.getProductByID(pid);
+    /**
+     * DELETE: Elimina un carrito
+     */
+    async delete(cid) {
+        const carts = await this.get();
+        const initialLength = carts.length;
 
-        const carts = await this.getAllCarts();
-        let i = 0;
-        const cartFilter = carts.filter(
-            (cart, index) => {
-                if (cart.id == cid) i = index;
-                return cart.id == cid;
-            }
-        );
-        console.log('index: ', i, 'cid: ', cid);
+        const updatedCarts = carts.filter(cart => cart.id != cid);
 
-        if (cartFilter.length > 0) {
-            let exist = false;
-            for (let key in carts[i].products) {
-                if (carts[i].products[key].product == pid) {
-                    exist = true;
-                    carts[i].products[key].quantity++;
-                }
-            }
-
-            if (!exist) {
-                carts[i].products.push({
-                    product: pid,
-                    quantity: 1
-                });
-            }
-        } else {
+        if (updatedCarts.length === initialLength) {
             throw new Error(`El carrito ${cid} no existe!`);
         }
 
         try {
-            await fs.promises.writeFile(this.file, JSON.stringify(carts, null, "\t"));
-
-            return carts[i];
-        } catch(e) {
-            throw new Error('Error al actualizar el carrito');
+            await fs.promises.writeFile(this.file, JSON.stringify(updatedCarts, null, '\t'));
+            return { deletedCount: 1 };
+        } catch (error) {
+            throw new Error('Error al eliminar el carrito');
         }
     }
 }

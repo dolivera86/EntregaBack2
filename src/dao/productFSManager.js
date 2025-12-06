@@ -1,114 +1,93 @@
 import fs from 'fs';
+import ProductFSHelper from './helpers/productFSHelper.js';
 
 class productFSManager {
-    
     constructor(file) {
         this.file = file;
     }
 
-    async getAllProducts() {
+    /**
+     * GET: Obtiene todos los productos
+     */
+    async get() {
         try {
             const products = await fs.promises.readFile(this.file, 'utf-8');
             return JSON.parse(products);
         } catch (error) {
             console.error(error.message);
-            return []; 
+            return [];
         }
     }
 
-    async getProductByID(pid) {
-        const products = await this.getAllProducts();
+    /**
+     * GETById: Obtiene un producto por ID
+     */
+    async getById(pid) {
+        const products = await this.get();
+        const product = ProductFSHelper.getProductById(products, pid);
 
-        const productFilter = products.filter(product => product.id == pid);
+        if (!product) throw new Error(`El producto ${pid} no existe!`);
 
-        if (productFilter.length > 0) {
-            return productFilter[0];
-        }
-
-        throw new Error(`El producto ${pid} no existe!`);
+        return product;
     }
 
-    async createProduct(product) {
-        const {title, description, code, price, stock, category, thumbnails} = product;
-
-        if (!title || !description || !code || !price || !stock || !category) {
+    /**
+     * CREATE: Crea un nuevo producto
+     */
+    async create(product) {
+        if (!ProductFSHelper.validateProduct(product)) {
             throw new Error('Error al crear el producto');
         }
 
-        const products = await this.getAllProducts();
+        const products = await this.get();
 
         const newProduct = {
-            id: this.getProductID(products),
-            title,
-            description,
-            code,
-            price,
+            id: ProductFSHelper.getProductID(products),
+            ...product,
             status: true,
-            stock,
-            category,
-            thumbnails: thumbnails ?? []
+            thumbnails: product.thumbnails ?? []
         }
 
         products.push(newProduct);
 
         try {
             await fs.promises.writeFile(this.file, JSON.stringify(products, null, '\t'));
-
             return newProduct;
         } catch (error) {
             throw new Error('Error al crear el producto');
         }
     }
 
-    getProductID(products) {
-        
-        const productsLength = products.length;
-        if (productsLength > 0) {
-            return parseInt(products[productsLength -1].id) + 1;
-        }
+    /**
+     * UPDATE: Actualiza un producto
+     */
+    async update(pid, productUpdate) {
+        const products = await this.get();
+        const productIndex = ProductFSHelper.findProductIndex(products, pid);
 
-        return 1;
-    }
+        if (productIndex === -1) throw new Error(`El producto ${pid} no existe!`);
 
-    async updateProduct(pid, productUpdate) {
-        const {title, description, code, price, status, stock, category, thumbnails} = productUpdate;
-        const products = await this.getAllProducts();
+        // Actualizar solo los campos proporcionados
+        const updatedProduct = {
+            ...products[productIndex],
+            ...productUpdate
+        };
 
-        let i = 0;
-        const productFilter = products.filter(
-            (product, index) => {
-                i = index;
-                return product.id == pid
-            }
-        );
-
-        if (productFilter.length > 0) {
-
-            products[i].title = title ? title : products[i].title;
-            products[i].description = description ? description : products[i].description;
-            products[i].code = code ? code : products[i].code;
-            products[i].price = price ? price : products[i].price;
-            products[i].status = status ? status : products[i].status;
-            products[i].stock = stock ? stock : products[i].stock;
-            products[i].category = category ? category : products[i].category;
-            products[i].thumbnails = thumbnails ? thumbnails : products[i].thumbnails;
-        } else {
-            throw new Error(`El producto ${pid} no existe!`);
-        }
+        products[productIndex] = updatedProduct;
 
         try {
-            await fs.promises.writeFile(this.file, JSON.stringify(products, null, "\t"));
-
-            return products[i];
-        } catch(e) {
+            await fs.promises.writeFile(this.file, JSON.stringify(products, null, '\t'));
+            return products[productIndex];
+        } catch (error) {
             throw new Error('Error al actualizar el producto');
         }
     }
 
-    async deleteProduct(pid) {
-        
-        const products = await this.getAllProducts();
-
+    /**
+     * DELETE: Elimina un producto
+     */
+    async delete(pid) {
+        const products = await this.get();
         const productsFilter = products.filter(product => product.id != pid);
 
         if (products.length === productsFilter.length) {
@@ -116,10 +95,9 @@ class productFSManager {
         }
 
         try {
-            await fs.promises.writeFile(this.file, JSON.stringify(productsFilter, null, "\t"));
-
-            return productsFilter;
-        } catch(e) {
+            await fs.promises.writeFile(this.file, JSON.stringify(productsFilter, null, '\t'));
+            return { deletedCount: 1 };
+        } catch (error) {
             throw new Error(`Error al eliminar el producto ${pid}`);
         }
     }
