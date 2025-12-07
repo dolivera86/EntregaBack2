@@ -58,7 +58,7 @@ app.use((req, res) => {
 });
 
 // Conexión a MongoDB
-const PORT = parseInt(process.env.PORT) || 8080;
+const PORT = parseInt(process.env.PORT) || 8000;
 const MONGODB_URI = process.env.MONGODB_URI;
 
 mongoose.connect(MONGODB_URI)

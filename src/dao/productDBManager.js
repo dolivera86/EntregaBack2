@@ -16,8 +16,8 @@ class productDBManager {
 
         const products = await productModel.paginate({}, paginate);
 
-        products.prevLink = products.hasPrevPage ? `http://localhost:8080/products?page=${products.prevPage}` : null;
-        products.nextLink = products.hasNextPage ? `http://localhost:8080/products?page=${products.nextPage}` : null;
+        products.prevLink = products.hasPrevPage ? `http://localhost:80/products?page=${products.prevPage}` : null;
+        products.nextLink = products.hasNextPage ? `http://localhost:80/products?page=${products.nextPage}` : null;
 
         if (products.prevLink && paginate.limit !== 10) products.prevLink += `&limit=${paginate.limit}`
         if (products.nextLink && paginate.limit !== 10) products.nextLink += `&limit=${paginate.limit}`
