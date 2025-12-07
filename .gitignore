@@ -1,5 +1,6 @@
 **/node_modules
 **/package-lock.json
 /public/img/**
+.env
 products.json
 carts.json
